@@ -108,8 +108,15 @@ def books(request, pk=None):
         
         if filter_book:
             book = book.filter(**filter_book).distinct()
-        page = int(request.GET.get("page", 1))
-        limit = int(request.GET.get("limit", 5))
+        page = int(request_get.get("page", 1))
+        limit = int(request_get.get("limit", 5))
+        
+        allowed_fields = ["title", "available_copies", "total_copies"]
+        order = request.GET.get("order")
+        if order:
+            field = order.replace("-", "")
+            if field in allowed_fields:
+                book = book.order_by(order)
         
         start = (page - 1) * limit
         end = page * limit
