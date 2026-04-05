@@ -18,5 +18,7 @@ urlpatterns = [
   path("api/borrow/", borrow, name="borrow"),
   path("api/borrow/<str:pk>/<str:action>/", borrow, name="borrow"),
   path("api/books/<str:pk>/reviews/", reviews, name="reviews"),
-  path("api/books/<str:pk>/reviews/", reviews, name="reviews")
+  path("api/books/<str:pk>/reviews/", reviews, name="reviews"),
+  path("api/books/<str:pk>/reviews/<str:review_id>/", reviews, name="reviews"),
+  
 ]

@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings 
 from datetime import datetime
+from django.dispatch import receiver
+from django.db.models.signals import post_save
 
 # Create your models here.
 
@@ -80,7 +82,7 @@ class BorrowRequest(models.Model):
     book = models.ForeignKey(Book, on_delete=models.CASCADE)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     status = models.CharField(choices=STATUS_CHOICES, default="pending")
-    request_at = models.DateTimeField(default=datetime.now())
+    request_at = models.DateTimeField(default=datetime.now)
     approved_at = models.DateField(null=True)
     return_at = models.DateField(null=True)
     
@@ -109,4 +111,15 @@ class BookReview(models.Model):
     
     
 
-    
+@receiver(post_save, sender=BorrowRequest)
+def copy_changes(sender, instance, created, **kwargs):
+    book = instance.book
+    if not created:
+        if sender.status == "approved":
+            if book.available_copies > 0:
+                book.available_copies -= 1
+                book.save()
+
+        elif instance.status == "returned":
+            book.available_copies += 1
+            book.save()

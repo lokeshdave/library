@@ -16,6 +16,7 @@ from .serializers import (UserSerializer, BookSerializer,
                           UserSerializerGet, BookReviewSerializer,
                           BookReviewSerializerAdd)
 from datetime import datetime
+from .permission import IsLibrarian, IsOwnerOrReadOnly
 
 # Create your views here.
 @api_view(["GET", "POST"])
@@ -118,40 +119,43 @@ def books(request, pk=None):
         return Response({"data": serializer})
 
     if request.method == "POST":
-        if request.user.role == "librarian":
-            serializer = BookSerializerSave(data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"msg": "Book added successfully"}, status=status.HTTP_201_CREATED)
-            else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        permission = IsLibrarian()
+        if not permission.has_permission(request, None):
+            return Response({"error": "Only librarian have access"}, status=403)
+        serializer = BookSerializerSave(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"msg": "Book added successfully"}, status=status.HTTP_201_CREATED)
         else:
-            return Response({"error": "Only librarian have access to do this action"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
             
     if request.method == "PUT":
         if pk:
-            if request.user.role == "librarian":
-                book = Book.objects.get(id=pk)
-                serializer = BookSerializer(book, data=request.data, partial=True)
-                if serializer.is_valid():
-                    serializer.save()
-                    return Response({"msg": "Book data edited successfully"},
-                                    status=status.HTTP_202_ACCEPTED)
-                else:
-                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            permission = IsLibrarian()
+
+            if not permission.has_permission(request, None):
+                return Response({"error": "Only librarian have access"}, status=403)
+            book = Book.objects.get(id=pk)
+            serializer = BookSerializer(book, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"msg": "Book data edited successfully"},
+                                status=status.HTTP_202_ACCEPTED)
             else:
-                return Response({"error": "Only librarian have access to do this action"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({"error": "Book id is required"}, status=status.HTTP_400_BAD_REQUEST)
     
     if request.method == "DELETE":
         if pk:
-            if request.user.role == "librarian":
-                book = Book.objects.get(id=pk)
-                book.delete()
-                return Response({"msg": "Book delete successfully"}, status=status.HTTP_202_ACCEPTED)
-            else:
-                return Response({"error": "Only librarian have access to do this action"}, status=status.HTTP_400_BAD_REQUEST)
+            permission = IsLibrarian()
+
+            if not permission.has_permission(request, None):
+                return Response({"error": "Only librarian have access"}, status=403)
+            book = Book.objects.get(id=pk)
+            book.delete()
+            return Response({"msg": "Book delete successfully"}, status=status.HTTP_202_ACCEPTED)
         else:
             return Response({"error": "Book id is required"}, status=status.HTTP_400_BAD_REQUEST)
                 
@@ -169,15 +173,16 @@ def author(request, pk=None):
         return Response({"data": serializer})
 
     if request.method == "POST":
-        if request.user.role == "librarian":
-            serializer = AuthorSerializer(data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"msg": "Author added successfully"}, status=status.HTTP_201_CREATED)
-            else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        permission = IsLibrarian()
+
+        if not permission.has_permission(request, None):
+            return Response({"error": "Only librarian have access"}, status=403)
+        serializer = AuthorSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"msg": "Author added successfully"}, status=status.HTTP_201_CREATED)
         else:
-            return Response({"error": "Only librarian have access to do this action"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             
 @api_view(['GET', 'POST'])
 def genre(request, pk=None):
@@ -192,15 +197,16 @@ def genre(request, pk=None):
         return Response({"data": serializer})
 
     if request.method == "POST":
-        if request.user.role == "librarian":
-            serializer = GenreSerializer(data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"msg": "Genre added successfully"}, status=status.HTTP_201_CREATED)
-            else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        permission = IsLibrarian()
+
+        if not permission.has_permission(request, None):
+            return Response({"error": "Only librarian have access"}, status=403)
+        serializer = GenreSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"msg": "Genre added successfully"}, status=status.HTTP_201_CREATED)
         else:
-            return Response({"error": "Only librarian have access to do this action"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'POST', 'PATCH'])
 def borrow(request, pk=None, action=None):
@@ -229,12 +235,12 @@ def borrow(request, pk=None, action=None):
             except BorrowRequest.DoesNotExist:
                 return Response({"error": "Borrow request doesn't exists"},
                                 status=status.HTTP_400_BAD_REQUEST)
-            if action.lower() == "approve":
+            if action.lower() == "approved":
                 borrow_request.status = action.lower() 
                 borrow_request.approved_at = datetime.now()
                 borrow_request.save()
             
-            elif action.lower() == "reject":
+            elif action.lower() == "rejected":
                 borrow_request.status = action.lower()
                 borrow_request.save()
             
@@ -255,8 +261,8 @@ def borrow(request, pk=None, action=None):
                            status=status.HTTP_400_BAD_REQUEST) 
            
            
-@api_view(['GET', 'POST'])
-def reviews(request, pk=None):
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+def reviews(request, pk=None, review_id=None):
     
     if request.method == "GET":  
         review = BookReview.objects.filter(book__id=pk)
@@ -275,6 +281,28 @@ def reviews(request, pk=None):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)        
     
+    if request.method in ["PUT", "DELETE"]:
+        try:
+            review = BookReview.objects.get(id=review_id)
+        except BookReview.DoesNotExist:
+            return Response({"error": "Review not found"}, status=404)
+
+        permission = IsOwnerOrReadOnly()
+
+        if not permission.has_object_permission(request, None, review):
+            return Response({"error": "Not allowed"}, status=403)
+
+        if request.method == "PUT":
+            serializer = BookReviewSerializer(review, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"msg": "Review updated"})
+            return Response(serializer.errors, status=400)
+
+        if request.method == "DELETE":
+            review.delete()
+            return Response({"msg": "Review deleted"}, status=204)
+
 @api_view(["POST"])
 def login_page(request):
     if request.method == "POST":
